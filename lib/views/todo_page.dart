@@ -239,11 +239,20 @@ class TodoPage extends StatelessWidget {
   // 할 일 수정 다이얼로그를 표시하는 메서드
   void _showEditDialog(
       BuildContext context, TodoController controller, Todo todo) {
+    // TextEditingController 인스턴스 생성
     final textController = TextEditingController(text: todo.title);
     final contentController = TextEditingController(text: todo.content);
     final assigneeController = TextEditingController(text: todo.assignee);
     final dateController = TextEditingController(text: todo.date);
     TodoStatus selectedStatus = todo.status;
+
+    // 다이얼로그가 닫힐 때 컨트롤러들을 dispose
+    void disposeControllers() {
+      textController.dispose();
+      contentController.dispose();
+      assigneeController.dispose();
+      dateController.dispose();
+    }
 
     Get.dialog(
       AlertDialog(
@@ -327,7 +336,10 @@ class TodoPage extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
+            onPressed: () {
+              disposeControllers(); // 취소 시 컨트롤러 정리
+              Get.back();
+            },
             child: const Text('취소'),
           ),
           ElevatedButton(
@@ -344,6 +356,7 @@ class TodoPage extends StatelessWidget {
                   assigneeController.text,
                   dateController.text,
                 );
+                disposeControllers(); // 수정 완료 시 컨트롤러 정리
                 Get.back();
               }
             },
@@ -351,7 +364,7 @@ class TodoPage extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ).then((_) => disposeControllers()); // 다이얼로그가 어떤 방식으로든 닫힐 때 컨트롤러 정리
   }
 
   // 상태별 할 일 목록 컬럼을 생성하는 메서드
