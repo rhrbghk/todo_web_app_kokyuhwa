@@ -45,7 +45,7 @@ class TodoPage extends StatelessWidget {
         child: Row(
           children: TodoStatus.values.map((status) {
             return Expanded(
-              child: _buildTodoColumn(status, controller),
+              child: _buildTodoColumn(context, status, controller),
             );
           }).toList(),
         ),
@@ -355,177 +355,187 @@ class TodoPage extends StatelessWidget {
   }
 
   // 상태별 할 일 목록 컬럼을 생성하는 메서드
-  Widget _buildTodoColumn(TodoStatus status, TodoController controller) {
-    final statusLabels = {
-      TodoStatus.todo: '할일',
-      TodoStatus.urgent: '급한일',
-      TodoStatus.inProgress: '진행중',
-      TodoStatus.done: '완료',
-    };
-
+  Widget _buildTodoColumn(
+      BuildContext context, TodoStatus status, TodoController controller) {
     return Card(
-      margin: const EdgeInsets.all(4.0),
-      color: Color(0xFFf7f8fa),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8.0),
-            color: Color(0XFFf7f8fa),
-            width: double.infinity,
-            child: Text(
-              statusLabels[status]!,
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              _getStatusTitle(status),
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
               textAlign: TextAlign.center,
             ),
-          ),
-          Expanded(
-            child: DragTarget<Todo>(
-              onWillAccept: (todo) => todo != null,
-              onAccept: (todo) {
-                final newIndex = controller.todos[status]!.length;
-                controller.moveTodo(todo, status, -1, newIndex);
-              },
-              builder: (context, candidateData, rejectedData) {
-                return Obx(
-                  () => ListView.builder(
-                    padding: const EdgeInsets.all(8.0),
-                    itemCount: controller.todos[status]!.length,
-                    itemBuilder: (context, index) {
-                      final todo = controller.todos[status]![index];
-                      return _buildDraggableTodoItem(todo, controller, context);
-                    },
-                  ),
-                );
-              },
+            const SizedBox(height: 8),
+            Expanded(
+              child: DragTarget<Map<String, dynamic>>(
+                onWillAccept: (data) => true,
+                onAcceptWithDetails: (details) {
+                  final data = details.data;
+                  final todo = data['todo'] as Todo;
+                  final oldIndex = data['index'] as int;
+
+                  // 드롭된 위치의 Y 좌표를 기준으로 새로운 인덱스 계산
+                  final RenderBox box = context.findRenderObject() as RenderBox;
+                  final localPosition = box.globalToLocal(details.offset);
+                  final height = box.size.height;
+
+                  // 상대적 위치에 따라 인덱스 계산 (0~1 사이의 값)
+                  final relativePosition = localPosition.dy / height;
+                  final listLength = controller.todos[status]!.length;
+                  final newIndex = (relativePosition * listLength).round();
+
+                  // 범위를 벗어나지 않도록 조정
+                  final adjustedNewIndex = newIndex.clamp(0, listLength);
+
+                  controller.moveTodo(todo, status, oldIndex, adjustedNewIndex);
+                },
+                builder: (context, candidateData, rejectedData) {
+                  return Obx(
+                    () => ListView.builder(
+                      itemCount: controller.todos[status]!.length,
+                      itemBuilder: (context, index) {
+                        final todo = controller.todos[status]![index];
+                        return Draggable<Map<String, dynamic>>(
+                          data: {
+                            'todo': todo,
+                            'index': index,
+                          },
+                          feedback: Material(
+                            elevation: 4.0,
+                            child: Container(
+                              width: MediaQuery.of(context).size.width * 0.2,
+                              padding: const EdgeInsets.all(8.0),
+                              color: Colors.white.withOpacity(0.9),
+                              child: _buildTodoCard(todo, context),
+                            ),
+                          ),
+                          childWhenDragging: Opacity(
+                            opacity: 0.3,
+                            child: _buildTodoCard(todo, context),
+                          ),
+                          child: _buildTodoCard(todo, context),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildDraggableTodoItem(
-      Todo todo, TodoController controller, BuildContext context) {
+  // 상태에 따른 제목을 반환하는 헬퍼 메서드
+  String _getStatusTitle(TodoStatus status) {
+    switch (status) {
+      case TodoStatus.todo:
+        return '할 일';
+      case TodoStatus.urgent:
+        return '급한 일';
+      case TodoStatus.inProgress:
+        return '진행 중';
+      case TodoStatus.done:
+        return '완료';
+    }
+  }
+
+  Widget _buildTodoCard(Todo todo, BuildContext context) {
     final UserController userController = Get.find<UserController>();
 
-    return Draggable<Todo>(
-      data: todo,
-      feedback: Material(
-        elevation: 4.0,
-        child: Container(
-          width: 200,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            todo.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ),
-      childWhenDragging: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Color(0xFFf7f8fa),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          todo.title,
-          style: const TextStyle(color: Colors.grey),
-        ),
-      ),
-      child: Card(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        color: Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      todo.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    todo.title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                  if (userController.canEditTodo(todo.creatorCode) &&
-                      userController.isLoggedIn())
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_horiz),
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Row(
-                            children: [
-                              Icon(Icons.edit, size: 20),
-                              SizedBox(width: 8),
-                              Text('수정'),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete, color: Colors.red, size: 20),
-                              SizedBox(width: 8),
-                              Text('삭제', style: TextStyle(color: Colors.red)),
-                            ],
-                          ),
-                        ),
-                      ],
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          _showEditDialog(context, controller, todo);
-                        } else if (value == 'delete') {
-                          controller.deleteTodo(todo);
-                        }
-                      },
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                todo.content,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.black,
                 ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '마감일: ${todo.date}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade700,
-                    ),
+                if (userController.canEditTodo(todo.creatorCode) &&
+                    userController.isLoggedIn())
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_horiz),
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit, size: 20),
+                            SizedBox(width: 8),
+                            Text('수정'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete, color: Colors.red, size: 20),
+                            SizedBox(width: 8),
+                            Text('삭제', style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
+                      ),
+                    ],
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _showEditDialog(
+                            context, Get.find<TodoController>(), todo);
+                      } else if (value == 'delete') {
+                        Get.find<TodoController>().deleteTodo(todo);
+                      }
+                    },
                   ),
-                  Text(
-                    '담당자: ${todo.assignee}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              todo.content,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.black,
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '마감일: ${todo.date}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                Text(
+                  '담당자: ${todo.assignee}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

@@ -93,35 +93,48 @@ class TodoController extends GetxController {
       creatorCode: creatorCode,
     );
 
-    todos[status]!.add(todo);
+    // 새로운 할 일을 리스트의 시작 부분에 추가
+    todos[status]!.insert(0, todo);
   }
 
   // 할 일의 상태를 변경하고 위치를 이동하는 메서드
   void moveTodo(Todo todo, TodoStatus newStatus, int oldIndex, int newIndex) {
-    // 현재 상태의 리스트에서 할 일 제거
-    final currentList = todos[todo.status]!;
-    final index = currentList.indexWhere((t) => t.id == todo.id);
-    if (index != -1) {
-      currentList.removeAt(index);
-    }
+    // 1. 원래 상태의 리스트에서 할 일을 제거하기 전에 복사
+    final todoToMove = todos[todo.status]![oldIndex];
 
-    // 새로운 상태로 이동할 할 일 객체 생성
+    // 2. 원래 상태의 리스트에서 할 일 제거
+    todos[todo.status]!.removeAt(oldIndex);
+
+    // 3. 새로운 상태로 이동할 할 일 객체 생성
     final movedTodo = Todo(
-      id: todo.id,
-      title: todo.title,
-      content: todo.content,
-      assignee: todo.assignee,
-      date: todo.date,
+      id: todoToMove.id,
+      creatorCode: todoToMove.creatorCode,
+      title: todoToMove.title,
+      content: todoToMove.content,
+      assignee: todoToMove.assignee,
+      date: todoToMove.date,
       status: newStatus,
-      creatorCode: todo.creatorCode,
-      isChecked: todo.isChecked,
+      tag: todoToMove.tag,
+      isChecked: todoToMove.isChecked,
     );
 
-    // 새로운 위치에 할 일 추가
-    if (newIndex >= todos[newStatus]!.length) {
-      todos[newStatus]!.add(movedTodo);
-    } else {
+    // 4. 새로운 상태의 리스트에 할 일 추가
+    if (todo.status == newStatus) {
+      // 같은 상태 내에서 이동하는 경우
       todos[newStatus]!.insert(newIndex, movedTodo);
+    } else {
+      // 다른 상태로 이동하는 경우
+      if (newIndex >= todos[newStatus]!.length) {
+        todos[newStatus]!.add(movedTodo);
+      } else {
+        todos[newStatus]!.insert(newIndex, movedTodo);
+      }
+    }
+
+    // 5. 상태 업데이트
+    todos[todo.status]!.refresh();
+    if (todo.status != newStatus) {
+      todos[newStatus]!.refresh();
     }
   }
 
@@ -142,16 +155,16 @@ class TodoController extends GetxController {
     // 기존 할 일 제거
     todos[todo.status]!.removeWhere((t) => t.id == todo.id);
 
-    // 수정된 할 일 객체 생성
-    final updatedTodo = Todo(
-      id: todo.id,
-      title: newTitle.trim(),
-      content: newContent,
-      assignee: newAssignee,
-      date: newDate,
-      creatorCode: todo.creatorCode,
-      status: newStatus,
-    );
+    // copyWith를 사용하여 필요한 필드만 업데이트
+    final updatedTodo = todo.copyWith(
+        title: newTitle.trim(),
+        content: newContent,
+        assignee: newAssignee,
+        date: newDate,
+        status: newStatus,
+        tag: todo.tag, // 기존 태그 유지
+        isChecked: todo.isChecked // 기존 체크 상태 유지
+        );
 
     // 새로운 상태에 할 일 추가
     todos[newStatus]!.add(updatedTodo);
@@ -162,15 +175,15 @@ class TodoController extends GetxController {
     final currentList = todos[todo.status]!;
     final index = currentList.indexWhere((t) => t.id == todo.id);
     if (index != -1) {
-      // 체크 상태가 변경된 새로운 할 일 객체 생성
       final updatedTodo = Todo(
         id: todo.id,
+        creatorCode: todo.creatorCode,
         title: todo.title,
         content: todo.content,
         assignee: todo.assignee,
         date: todo.date,
-        creatorCode: todo.creatorCode,
         status: todo.status,
+        tag: todo.tag,
         isChecked: !todo.isChecked,
       );
       currentList[index] = updatedTodo;
